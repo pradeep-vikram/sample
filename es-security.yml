@@ -8,6 +8,13 @@ services:
     user: "0"
     command: >
       bash -c '
+        if [ x${ELASTIC_PASSWORD} == x ]; then
+          echo "Set the ELASTIC_PASSWORD environment variable in the .env file";
+          exit 1;
+        elif [ x${KIBANA_PASSWORD} == x ]; then
+          echo "Set the KIBANA_PASSWORD environment variable in the .env file";
+          exit 1;
+        fi;
         if [ ! -f config/certs/ca.zip ]; then
           echo "Creating CA";
           bin/elasticsearch-certutil ca --silent --pem -out config/certs/ca.zip;
@@ -35,8 +42,14 @@ services:
         until curl -s --cacert config/certs/ca/ca.crt https://esnode1:9200 | grep -q "missing authentication credentials"; do sleep 30; done;
         echo "Setting kibana_system password";
         until curl -s -X POST --cacert config/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" https://esnode1:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do sleep 10; done;
-        echo "Good to go!";
+        echo "All done!";
       '
+    healthcheck:
+      test: ["CMD-SHELL", "[ -f config/certs/esnode1/esnode1.crt ]"]
+      interval: 1s
+      timeout: 5s
+      retries: 120
+  
   esnode1:
     depends_on:
       - setup
